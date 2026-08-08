@@ -149,6 +149,7 @@ void FileManager::_scanFiles() {
         templateMap["oneshot_food.tpl"] = itemBaseTemplate;
         templateMap["oneshot_scroll.tpl"] = itemBaseTemplate;
         templateMap["oneshot_gold.tpl"] = itemBaseTemplate;
+        templateMap["oneshot_skillunlock.tpl"] = itemBaseTemplate;
         templateMap["questitem.tpl"] = itemBaseTemplate;
         templateMap["itemartifact.tpl"] = itemBaseTemplate;
         templateMap["jewelry_ring.tpl"] = itemBaseTemplate;
