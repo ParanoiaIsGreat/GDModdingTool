@@ -141,23 +141,33 @@ public:
         return ItemClass::ClassNone;
     }
 
-    static ItemType ItemTypeOf(const std::string originalValue) {
+     static ItemType ItemTypeOf(const std::string originalValue) {
         std::string value = originalValue;
+        
+        // 1. 统一转换为小写
         std::transform(value.begin(), value.end(), value.begin(),
             [](unsigned char c){ return std::tolower(c); });
+
+        // 2. 移除可能存在的不可见空白字符和回车换行符，防止匹配失败
+        value.erase(std::remove(value.begin(), value.end(), '\r'), value.end());
+        value.erase(std::remove(value.begin(), value.end(), '\n'), value.end());
+        value.erase(std::remove(value.begin(), value.end(), ' '), value.end());
 
         if (value == "jewelry_amulet.tpl" || value == "amulet") { return ItemType::TypeAmulet; }
         else if (value == "armor_waist.tpl" || value == "belt") { return ItemType::TypeBelt; }
         else if (value.substr(0,6) == "armor_" || value == "armor") { return ItemType::TypeArmor; }
-        else if (value == "itemrandomsetformula.tpl" || value == "itemartifactformula.tpl" || value == "itemsetformula.tpl" || value == "blueprint") { return ItemType::TypeBlueprint; }
+        
+        // 【更新】将 oneshot_skillunlock.tpl 正确归类为蓝图 (Blueprint)
+        else if (value == "itemrandomsetformula.tpl" || value == "itemartifactformula.tpl" || value == "itemsetformula.tpl" || value == "oneshot_skillunlock.tpl" || value == "blueprint") { return ItemType::TypeBlueprint; }
+        
         else if (value == "itemrelic.tpl" || value == "component") { return ItemType::TypeComponent; }
         else if (value == "jewelry_medal.tpl" || value == "medal") { return ItemType::TypeMedal; }
-        else if (value == "oneshot_potionhealth.tpl" || value == "oneshot_potionmana.tpl" || value == "oneshot_food.tpl" || value == "oneshot_skillunlock.tpl" || value == "potion") { return ItemType::TypePotion; }
+        else if (value == "oneshot_potionhealth.tpl" || value == "oneshot_potionmana.tpl" || value == "oneshot_food.tpl" || value == "potion") { return ItemType::TypePotion; }
         else if (value == "questitem.tpl" || value == "quest") { return ItemType::TypeQuest; }
         else if (value == "itemartifact.tpl" || value == "relic") { return ItemType::TypeRelic; }
         else if (value == "jewelry_ring.tpl" || value == "ring") { return ItemType::TypeRing; }
         else if (value == "weaponarmor_shield.tpl" || value == "shield") { return ItemType::TypeShield; }
-        else if (value.substr(0, 7) == "weapon_" || value == "weapon_spear2h.tpl" || value == "weapon") { return ItemType::TypeWeapon; }
+        else if (value.substr(0, 7) == "weapon_" || value == "weapon") { return ItemType::TypeWeapon; }
 
         return ItemType::TypeNone;
     }
