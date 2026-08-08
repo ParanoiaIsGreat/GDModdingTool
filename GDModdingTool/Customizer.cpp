@@ -127,6 +127,7 @@ Customizer::Customizer(FileManager* fileManager, std::vector<std::string> comman
     _commandMap["IncreaseMonsterClassLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator, ParamTypes::MonsterClassEnumValidator }),
         [this](std::vector<std::string> params) { increaseMonsterClassLimit(ParamTypes::Integer(params[0]), ParamTypes::MonsterClassEnum(params[1])); });
     _commandMap["RemoveDifficultyLimits"] = Command(std::vector<std::function<bool(std::string)>>(), [this](std::vector<std::string> params) { removeDifficultyLimits(); });
+	_commandMap["RemoveExclusiveSkills"] = Command(std::vector<std::function<bool(std::string)>>(), [this](std::vector<std::string> params) { removeExclusiveSkills(); });
     _commandMap["SetDevotionPointsPerShrine"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator }),
         [this](std::vector<std::string> params) { setDevotionPointsPerShrine(ParamTypes::Integer(params[0])); });
     _commandMap["SetItemStackLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator, ParamTypes::ItemTypeEnumValidator }),
@@ -963,4 +964,21 @@ void Customizer::_getWorkPart(int& start, int& end) {
     start = _remainingWorkStart;
     _remainingWorkStart += size;
     end = _remainingWorkStart;
+}
+
+// 【在文件末尾新增该函数的完整实现】
+void Customizer::removeExclusiveSkills() {
+    FileManager* fmCopy = _fileManager;
+    std::function<void()> f = [fmCopy]() {
+        // 获取本次扫描到的所有模板名称
+        std::vector<std::string> templates = fmCopy->getTemplateNames();
+        for (const std::string& tpl : templates) {
+            // 将 exclusiveSkill 覆写为 0 (FALSE)
+            fmCopy->modifyField(tpl, "exclusiveSkill", [](std::string str) -> std::string { return "0"; });
+            
+            // 将技能冷却时间 skillCooldownTime 覆写为 0
+            fmCopy->modifyField(tpl, "skillCooldownTime", [](std::string str) -> std::string { return "0"; });
+        }
+    };
+    _tasks.push_back(f);
 }
