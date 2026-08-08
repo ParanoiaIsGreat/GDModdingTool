@@ -141,19 +141,23 @@ public:
         return ItemClass::ClassNone;
     }
 
-    static ItemType ItemTypeOf(const std::string value) {
-        if (value == "jewelry_amulet.tpl" || value == "Amulet") { return ItemType::TypeAmulet; }
-        else if (value == "armor_waist.tpl" || value == "Belt") { return ItemType::TypeBelt; }
-        else if (value.substr(0,6) == "armor_" || value == "Armor") { return ItemType::TypeArmor; }
-        else if (value == "itemrandomsetformula.tpl" || value == "itemartifactformula.tpl" || value == "itemsetformula.tpl" || value == "Blueprint") { return ItemType::TypeBlueprint; }
-        else if (value == "itemrelic.tpl" || value == "Component") { return ItemType::TypeComponent; }
-        else if (value == "jewelry_medal.tpl" || value == "Medal") { return ItemType::TypeMedal; }
-        else if (value == "oneshot_potionhealth.tpl" || value == "oneshot_potionmana.tpl" || value == "oneshot_food.tpl" || value == "Potion") { return ItemType::TypePotion; }
-        else if (value == "questitem.tpl" || value == "Quest") { return ItemType::TypeQuest; }
-        else if (value == "itemartifact.tpl" || value == "Relic") { return ItemType::TypeRelic; }
-        else if (value == "jewelry_ring.tpl" || value == "Ring") { return ItemType::TypeRing; }
-        else if (value == "weaponarmor_shield.tpl" || value == "Shield") { return ItemType::TypeShield; }
-        else if (value.substr(0, 7) == "weapon_" || value == "Weapon") { return ItemType::TypeWeapon; }
+    static ItemType ItemTypeOf(const std::string originalValue) {
+        std::string value = originalValue;
+        std::transform(value.begin(), value.end(), value.begin(),
+            [](unsigned char c){ return std::tolower(c); });
+
+        if (value == "jewelry_amulet.tpl" || value == "amulet") { return ItemType::TypeAmulet; }
+        else if (value == "armor_waist.tpl" || value == "belt") { return ItemType::TypeBelt; }
+        else if (value.substr(0,6) == "armor_" || value == "armor") { return ItemType::TypeArmor; }
+        else if (value == "itemrandomsetformula.tpl" || value == "itemartifactformula.tpl" || value == "itemsetformula.tpl" || value == "blueprint") { return ItemType::TypeBlueprint; }
+        else if (value == "itemrelic.tpl" || value == "component") { return ItemType::TypeComponent; }
+        else if (value == "jewelry_medal.tpl" || value == "medal") { return ItemType::TypeMedal; }
+        else if (value == "oneshot_potionhealth.tpl" || value == "oneshot_potionmana.tpl" || value == "oneshot_food.tpl" || value == "oneshot_skillunlock.tpl" || value == "potion") { return ItemType::TypePotion; }
+        else if (value == "questitem.tpl" || value == "quest") { return ItemType::TypeQuest; }
+        else if (value == "itemartifact.tpl" || value == "relic") { return ItemType::TypeRelic; }
+        else if (value == "jewelry_ring.tpl" || value == "ring") { return ItemType::TypeRing; }
+        else if (value == "weaponarmor_shield.tpl" || value == "shield") { return ItemType::TypeShield; }
+        else if (value.substr(0, 7) == "weapon_" || value == "weapon_spear2h.tpl" || value == "weapon") { return ItemType::TypeWeapon; }
 
         return ItemType::TypeNone;
     }
