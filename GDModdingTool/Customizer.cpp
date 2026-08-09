@@ -1041,11 +1041,12 @@ void Customizer::adjustPetLimit(float multiplier) {
                             else if (c != ' ' && c != '_') cleanStr += c; 
                         }
                         
-                        // 覆盖你指定的 6 个召唤物在底层的真实DNA代号
+                        // 覆盖你指定的 6 个召唤物在底层的真实DNA代号，新增了 thornedhorror
                         if (cleanStr.find("hellhound") != std::string::npos ||
                             cleanStr.find("raven") != std::string::npos ||
                             cleanStr.find("familiar") != std::string::npos ||
                             cleanStr.find("briarthorn") != std::string::npos ||
+                            cleanStr.find("thornedhorror") != std::string::npos ||
                             cleanStr.find("manticore") != std::string::npos ||
                             cleanStr.find("blightbeast") != std::string::npos ||
                             cleanStr.find("abomination") != std::string::npos ||
