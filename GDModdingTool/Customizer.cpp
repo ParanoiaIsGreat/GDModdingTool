@@ -1020,7 +1020,7 @@ void Customizer::removePetSkillManaCost() {
     };
     _tasks.push_back(f);
 }
-// 3. 独立参数：自定义宠物数量倍数（终极核心文件白名单校验版）
+// 3. 独立参数：自定义宠物数量倍数（终极无死角匹配 & 强制同步版）
 void Customizer::adjustPetLimit(float multiplier) {
     FileManager* fmCopy = _fileManager;
     std::function<void()> f = [fmCopy, multiplier]() {
@@ -1033,36 +1033,42 @@ void Customizer::adjustPetLimit(float multiplier) {
                     
                     std::shared_ptr<bool> isTargetPet = std::make_shared<bool>(false);
                     
-                    // 鉴定器：读取文件的核心特征（等同于校验你提供的6个文件路径）
+                    // 鉴定器：剔除空格和下划线后，进行无死角特征匹配
                     auto checker = [isTargetPet](std::string str) -> std::string {
-                        std::string lowerStr = str;
-                        for (char& c : lowerStr) { if (c >= 'A' && c <= 'Z') c += 32; }
+                        std::string cleanStr = "";
+                        for (char c : str) { 
+                            if (c >= 'A' && c <= 'Z') {
+                                cleanStr += (c + 32); // 转小写
+                            } else if (c != ' ' && c != '_') {
+                                cleanStr += c; // 剔除空格和下划线
+                            }
+                        }
                         
-                        // 严格匹配你指定的 6 个召唤物核心代号
-                        // hellhound1, raven1, briarthorn1, manticore1, blightbeast1b, reapspirit1
-                        if (lowerStr.find("hellhound") != std::string::npos ||
-                            lowerStr.find("raven") != std::string::npos ||
-                            lowerStr.find("briarthorn") != std::string::npos ||
-                            lowerStr.find("manticore") != std::string::npos ||
-                            lowerStr.find("blightbeast") != std::string::npos ||
-                            lowerStr.find("blightfiend") != std::string::npos ||
-                            lowerStr.find("reapspirit") != std::string::npos ||
-                            lowerStr.find("reapingspirit") != std::string::npos) {
+                        // 匹配 6 个核心代号
+                        if (cleanStr.find("hellhound") != std::string::npos ||
+                            cleanStr.find("raven") != std::string::npos ||
+                            cleanStr.find("briarthorn") != std::string::npos ||
+                            cleanStr.find("manticore") != std::string::npos ||
+                            cleanStr.find("blightbeast") != std::string::npos ||
+                            cleanStr.find("blightfiend") != std::string::npos ||
+                            cleanStr.find("reapspirit") != std::string::npos ||
+                            cleanStr.find("reapingspirit") != std::string::npos) {
                             
-                            // 排除刀灵、图腾、符文等伪宠物干扰
-                            if (lowerStr.find("blade") == std::string::npos && 
-                                lowerStr.find("totem") == std::string::npos &&
-                                lowerStr.find("rune") == std::string::npos) {
+                            // 排除伪宠物
+                            if (cleanStr.find("blade") == std::string::npos && 
+                                cleanStr.find("totem") == std::string::npos &&
+                                cleanStr.find("rune") == std::string::npos) {
                                 *isTargetPet = true;
                             }
                         }
                         return str; // 不修改原字段，只负责验证
                     };
 
-                    // 遍历这 6 个文件必然包含的专属文本字段进行比对
+                    // 扩大搜索范围：检查所有可能包含名称的字段
                     std::vector<std::string> featureFields = {
                         "skillDisplayName", "skillBaseName", "FileDescription", 
-                        "petBonusName", "spawnObjects", "spawnObjects1"
+                        "petBonusName", "spawnObjects", "spawnObjects1", 
+                        "spawnObjects2", "spawnObjects3", "spawnObjects4", "skillName"
                     };
                     for (const std::string& field : featureFields) {
                         if (temp->hasField(field)) {
@@ -1070,8 +1076,11 @@ void Customizer::adjustPetLimit(float multiplier) {
                         }
                     }
 
-                    // 核心修改：只对鉴定通过（isTargetPet 为 true）的 6 个宠物生效
-                    temp->modifyField("petLimit", [multiplier, isTargetPet](std::string str) -> std::string {
+                    // 用于在两个 Lambda 之间传递计算后的上限结果
+                    std::shared_ptr<std::string> newLimitStr = std::make_shared<std::string>("");
+
+                    // 核心修改 A：计算并覆写宠物上限
+                    temp->modifyField("petLimit", [multiplier, isTargetPet, newLimitStr](std::string str) -> std::string {
                         if (!(*isTargetPet)) return str;
 
                         std::stringstream ss(str);
@@ -1088,29 +1097,19 @@ void Customizer::adjustPetLimit(float multiplier) {
                             }
                         }
                         if (!result.empty()) result.pop_back();
+                        
+                        *newLimitStr = result; // 将最终的字符串暂存起来
                         return result;
                     });
                     
-                    // 同步修改单次爆发召唤数量
+                    // 核心修改 B：强制将单次爆发召唤数量与上限完全同步
                     if (temp->hasField("petBurstSpawn")) {
-                        temp->modifyField("petBurstSpawn", [multiplier, isTargetPet](std::string str) -> std::string {
+                        temp->modifyField("petBurstSpawn", [isTargetPet, newLimitStr](std::string str) -> std::string {
                             if (!(*isTargetPet)) return str; 
-
-                            std::stringstream ss(str);
-                            std::string item;
-                            std::string result = "";
-                            while(std::getline(ss, item, ';')) {
-                                if (!item.empty()) {
-                                    try {
-                                        float val = std::stof(item);
-                                        int newVal = (int)(val * multiplier);
-                                        if (newVal < 1 && val > 0) newVal = 1;
-                                        result += std::to_string(newVal) + ";";
-                                    } catch (...) { result += item + ";"; }
-                                }
+                            if (!newLimitStr->empty()) {
+                                return *newLimitStr; // 直接强行应用上面计算好的上限值
                             }
-                            if (!result.empty()) result.pop_back();
-                            return result;
+                            return str;
                         });
                     }
                 }
