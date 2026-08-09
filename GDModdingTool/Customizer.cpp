@@ -972,18 +972,13 @@ void Customizer::_getWorkPart(int& start, int& end) {
     end = _remainingWorkStart;
 }
 
-// 【在文件末尾新增该函数的完整实现】
 void Customizer::removeExclusiveSkills() {
     FileManager* fmCopy = _fileManager;
     std::function<void()> f = [fmCopy]() {
-        // 获取本次扫描到的所有模板名称
         std::vector<std::string> templates = fmCopy->getTemplateNames();
         for (const std::string& tpl : templates) {
-            // 将 exclusiveSkill 覆写为 0 (FALSE)
+            // 仅取消独占，去掉了之前误加的全局冷却清零代码
             fmCopy->modifyField(tpl, "exclusiveSkill", [](std::string str) -> std::string { return "0"; });
-            
-            // 将技能冷却时间 skillCooldownTime 覆写为 0
-            fmCopy->modifyField(tpl, "skillCooldownTime", [](std::string str) -> std::string { return "0"; });
         }
     };
     _tasks.push_back(f);
