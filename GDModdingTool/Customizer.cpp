@@ -1020,7 +1020,7 @@ void Customizer::removePetSkillManaCost() {
     };
     _tasks.push_back(f);
 }
-// 3. 独立参数：自定义宠物数量倍数（带白名单过滤，不误伤刀灵等伪宠物）
+// 3. 独立参数：自定义宠物数量倍数（带严格白名单过滤与安全指针）
 void Customizer::adjustPetLimit(float multiplier) {
     FileManager* fmCopy = _fileManager;
     std::function<void()> f = [fmCopy, multiplier]() {
@@ -1028,45 +1028,75 @@ void Customizer::adjustPetLimit(float multiplier) {
         for (const std::string& tpl : templates) {
             std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
             for (auto temp : files) {
-                // 必须同时存在上限字段和召唤物路径字段
-                if (temp->hasField("petLimit") && temp->hasField("spawnObjects")) {
+                // 第一步防线：只要有宠物上限字段，我们就进去鉴定，不再死磕具体的 spawn 字段名
+                if (temp->hasField("petLimit")) {
                     
-                    bool isTargetPet = false;
+                    // 使用共享指针，防止底层延迟修改导致变量被销毁
+                    std::shared_ptr<bool> isTargetPet = std::make_shared<bool>(false);
                     
-                    // 步骤 A：通过隐式读取 spawnObjects 来鉴定具体召唤了什么宠物
-                    temp->modifyField("spawnObjects", [&isTargetPet](std::string str) -> std::string {
-                        // 将路径转为小写以防大小写差异
+                    // 鉴定器：读取路径并判定是否在指定的宝宝白名单中
+                    auto checker = [isTargetPet](std::string str) -> std::string {
                         std::string lowerStr = str;
-                        for (char& c : lowerStr) {
-                            if (c >= 'A' && c <= 'Z') c = c + ('a' - 'A');
-                        }
+                        for (char& c : lowerStr) { if (c >= 'A' && c <= 'Z') c += 32; }
                         
-                        // 白名单关键词精准匹配（涵盖了你指定的特定职业宝宝底层文件名）
-                        bool match = false;
-                        if (lowerStr.find("familiar") != std::string::npos) match = true;        // 乌鸦
-                        if (lowerStr.find("hellhound") != std::string::npos) match = true;       // 地狱犬
-                        if (lowerStr.find("briarthorn") != std::string::npos) match = true;      // 荆棘兽
-                        if (lowerStr.find("primal") != std::string::npos) match = true;          // 原始之灵
-                        if (lowerStr.find("skeleton") != std::string::npos) match = true;        // 骷髅
-                        if (lowerStr.find("blightfiend") != std::string::npos || 
-                            lowerStr.find("abomination") != std::string::npos) match = true;     // 疫病恶魔(底层代号abomination)
-                        if (lowerStr.find("reapspirit") != std::string::npos || 
-                            lowerStr.find("wraith") != std::string::npos || 
-                            lowerStr.find("ghost") != std::string::npos) match = true;           // 精魂
-                        
-                        // 排除刀灵 (blade spirit) 等可能携带spirit字眼的干扰项
-                        if (match && lowerStr.find("blade") == std::string::npos) {
-                            isTargetPet = true;
+                        if (lowerStr.find("familiar") != std::string::npos ||
+                            lowerStr.find("hellhound") != std::string::npos ||
+                            lowerStr.find("briarthorn") != std::string::npos ||
+                            lowerStr.find("primal") != std::string::npos ||
+                            lowerStr.find("skeleton") != std::string::npos ||
+                            lowerStr.find("blightfiend") != std::string::npos ||
+                            lowerStr.find("abomination") != std::string::npos ||
+                            lowerStr.find("reapspirit") != std::string::npos ||
+                            lowerStr.find("wraith") != std::string::npos ||
+                            lowerStr.find("ghost") != std::string::npos) {
+                            
+                            // 排除刀灵、图腾、符文等伪宠物
+                            if (lowerStr.find("blade") == std::string::npos && 
+                                lowerStr.find("totem") == std::string::npos &&
+                                lowerStr.find("rune") == std::string::npos) {
+                                *isTargetPet = true;
+                            }
                         }
-                        return str; // 不修改原路径，只负责读取和判定
-                    });
+                        return str; // 原样返回，坚决不修改原路径
+                    };
 
-                    // 步骤 B：如果是白名单内的真正宝宝，再执行数量翻倍
-                    if (isTargetPet) {
-                        std::string newLimitStr = ""; 
-                        
-                        // 修改数量上限
-                        temp->modifyField("petLimit", [multiplier, &newLimitStr](std::string str) -> std::string {
+                    // 遍历所有可能藏有召唤物文件路径的底层字段
+                    std::vector<std::string> spawnFields = {
+                        "spawnObjects", "spawnObjects1", "spawnObjects2", 
+                        "spawnObjects3", "spawnObjects4", "petBonusName"
+                    };
+                    for (const std::string& field : spawnFields) {
+                        if (temp->hasField(field)) {
+                            temp->modifyField(field, checker);
+                        }
+                    }
+
+                    // 修改宠物上限：只有被鉴定器确认为 true 的真宝宝，才应用倍数
+                    temp->modifyField("petLimit", [multiplier, isTargetPet](std::string str) -> std::string {
+                        if (!(*isTargetPet)) return str; // 不是白名单宝宝，原样返回不作修改
+
+                        std::stringstream ss(str);
+                        std::string item;
+                        std::string result = "";
+                        while(std::getline(ss, item, ';')) {
+                            if (!item.empty()) {
+                                try {
+                                    float val = std::stof(item);
+                                    int newVal = (int)(val * multiplier);
+                                    if (newVal < 1 && val > 0) newVal = 1;
+                                    result += std::to_string(newVal) + ";";
+                                } catch (...) { result += item + ";"; }
+                            }
+                        }
+                        if (!result.empty()) result.pop_back();
+                        return result;
+                    });
+                    
+                    // 同步修改单次爆发召唤数量
+                    if (temp->hasField("petBurstSpawn")) {
+                        temp->modifyField("petBurstSpawn", [multiplier, isTargetPet](std::string str) -> std::string {
+                            if (!(*isTargetPet)) return str; 
+
                             std::stringstream ss(str);
                             std::string item;
                             std::string result = "";
@@ -1077,22 +1107,12 @@ void Customizer::adjustPetLimit(float multiplier) {
                                         int newVal = (int)(val * multiplier);
                                         if (newVal < 1 && val > 0) newVal = 1;
                                         result += std::to_string(newVal) + ";";
-                                    } catch (...) {
-                                        result += item + ";";
-                                    }
+                                    } catch (...) { result += item + ";"; }
                                 }
                             }
                             if (!result.empty()) result.pop_back();
-                            newLimitStr = result;
                             return result;
                         });
-                        
-                        // 同步修改单次爆发召唤数量
-                        if (!newLimitStr.empty() && temp->hasField("petBurstSpawn")) {
-                            temp->modifyField("petBurstSpawn", [newLimitStr](std::string str) -> std::string {
-                                return newLimitStr;
-                            });
-                        }
                     }
                 }
             }
