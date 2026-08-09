@@ -1020,7 +1020,7 @@ void Customizer::removePetSkillManaCost() {
     };
     _tasks.push_back(f);
 }
-// 3. 独立参数：自定义宠物数量倍数（带严格白名单过滤与安全指针）
+// 3. 独立参数：自定义宠物数量倍数（终极核心文件白名单校验版）
 void Customizer::adjustPetLimit(float multiplier) {
     FileManager* fmCopy = _fileManager;
     std::function<void()> f = [fmCopy, multiplier]() {
@@ -1028,52 +1028,51 @@ void Customizer::adjustPetLimit(float multiplier) {
         for (const std::string& tpl : templates) {
             std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
             for (auto temp : files) {
-                // 第一步防线：只要有宠物上限字段，我们就进去鉴定，不再死磕具体的 spawn 字段名
+                // 第一关：只要有上限字段，就开始执行白名单核对
                 if (temp->hasField("petLimit")) {
                     
-                    // 使用共享指针，防止底层延迟修改导致变量被销毁
                     std::shared_ptr<bool> isTargetPet = std::make_shared<bool>(false);
                     
-                    // 鉴定器：读取路径并判定是否在指定的宝宝白名单中
+                    // 鉴定器：读取文件的核心特征（等同于校验你提供的6个文件路径）
                     auto checker = [isTargetPet](std::string str) -> std::string {
                         std::string lowerStr = str;
                         for (char& c : lowerStr) { if (c >= 'A' && c <= 'Z') c += 32; }
                         
-                        if (lowerStr.find("familiar") != std::string::npos ||
-                            lowerStr.find("hellhound") != std::string::npos ||
+                        // 严格匹配你指定的 6 个召唤物核心代号
+                        // hellhound1, raven1, briarthorn1, manticore1, blightbeast1b, reapspirit1
+                        if (lowerStr.find("hellhound") != std::string::npos ||
+                            lowerStr.find("raven") != std::string::npos ||
                             lowerStr.find("briarthorn") != std::string::npos ||
-                            lowerStr.find("primal") != std::string::npos ||
-                            lowerStr.find("skeleton") != std::string::npos ||
+                            lowerStr.find("manticore") != std::string::npos ||
+                            lowerStr.find("blightbeast") != std::string::npos ||
                             lowerStr.find("blightfiend") != std::string::npos ||
-                            lowerStr.find("abomination") != std::string::npos ||
                             lowerStr.find("reapspirit") != std::string::npos ||
-                            lowerStr.find("wraith") != std::string::npos ||
-                            lowerStr.find("ghost") != std::string::npos) {
+                            lowerStr.find("reapingspirit") != std::string::npos) {
                             
-                            // 排除刀灵、图腾、符文等伪宠物
+                            // 排除刀灵、图腾、符文等伪宠物干扰
                             if (lowerStr.find("blade") == std::string::npos && 
                                 lowerStr.find("totem") == std::string::npos &&
                                 lowerStr.find("rune") == std::string::npos) {
                                 *isTargetPet = true;
                             }
                         }
-                        return str; // 原样返回，坚决不修改原路径
+                        return str; // 不修改原字段，只负责验证
                     };
 
-                    // 遍历所有可能藏有召唤物文件路径的底层字段
-                    std::vector<std::string> spawnFields = {
-                        "spawnObjects", "spawnObjects1", "spawnObjects2", 
-                        "spawnObjects3", "spawnObjects4", "petBonusName"
+                    // 遍历这 6 个文件必然包含的专属文本字段进行比对
+                    std::vector<std::string> featureFields = {
+                        "skillDisplayName", "skillBaseName", "FileDescription", 
+                        "petBonusName", "spawnObjects", "spawnObjects1"
                     };
-                    for (const std::string& field : spawnFields) {
+                    for (const std::string& field : featureFields) {
                         if (temp->hasField(field)) {
                             temp->modifyField(field, checker);
                         }
                     }
 
-                    // 修改宠物上限：只有被鉴定器确认为 true 的真宝宝，才应用倍数
+                    // 核心修改：只对鉴定通过（isTargetPet 为 true）的 6 个宠物生效
                     temp->modifyField("petLimit", [multiplier, isTargetPet](std::string str) -> std::string {
-                        if (!(*isTargetPet)) return str; // 不是白名单宝宝，原样返回不作修改
+                        if (!(*isTargetPet)) return str;
 
                         std::stringstream ss(str);
                         std::string item;
