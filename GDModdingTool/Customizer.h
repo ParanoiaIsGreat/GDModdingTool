@@ -138,6 +138,9 @@ public:
     void increaseMonsterClassLimit(int limit, MonsterClass monsterClass);
     void removeDifficultyLimits();
 	void removeExclusiveSkills();
+	void removePetSkillCooldown();
+    void removePetSkillManaCost();
+    void adjustPetLimit(float multiplier);
     void adjustRunSpeed(float multiplier);
     void setDevotionPointsPerShrine(int point);
     void setItemStackLimit(int limit, ItemType type);

@@ -99,6 +99,10 @@ public:
     void modifyField(std::string fieldName, std::function<std::string(std::string)> modifier);
     void modifyField(std::vector<std::string> fieldNames, std::function<std::string(std::string)> modifier);
     std::string text();
+	bool hasField(std::string fieldName) {
+        parse();
+        return _fieldMap[fieldName] != nullptr;
+    }
 
     const std::filesystem::directory_entry directoryEntry() const {
         return _directoryEntry;

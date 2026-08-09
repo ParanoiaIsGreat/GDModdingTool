@@ -128,6 +128,12 @@ Customizer::Customizer(FileManager* fileManager, std::vector<std::string> comman
         [this](std::vector<std::string> params) { increaseMonsterClassLimit(ParamTypes::Integer(params[0]), ParamTypes::MonsterClassEnum(params[1])); });
     _commandMap["RemoveDifficultyLimits"] = Command(std::vector<std::function<bool(std::string)>>(), [this](std::vector<std::string> params) { removeDifficultyLimits(); });
 	_commandMap["RemoveExclusiveSkills"] = Command(std::vector<std::function<bool(std::string)>>(), [this](std::vector<std::string> params) { removeExclusiveSkills(); });
+	_commandMap["RemovePetSkillCooldown"] = Command(std::vector<std::function<bool(std::string)>>(), 
+        [this](std::vector<std::string> params) { removePetSkillCooldown(); });
+    _commandMap["RemovePetSkillManaCost"] = Command(std::vector<std::function<bool(std::string)>>(), 
+        [this](std::vector<std::string> params) { removePetSkillManaCost(); });
+    _commandMap["AdjustPetLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
+        [this](std::vector<std::string> params) { adjustPetLimit(ParamTypes::Float(params[0])); });
     _commandMap["SetDevotionPointsPerShrine"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator }),
         [this](std::vector<std::string> params) { setDevotionPointsPerShrine(ParamTypes::Integer(params[0])); });
     _commandMap["SetItemStackLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator, ParamTypes::ItemTypeEnumValidator }),
@@ -978,6 +984,78 @@ void Customizer::removeExclusiveSkills() {
             
             // 将技能冷却时间 skillCooldownTime 覆写为 0
             fmCopy->modifyField(tpl, "skillCooldownTime", [](std::string str) -> std::string { return "0"; });
+        }
+    };
+    _tasks.push_back(f);
+}
+
+// 1. 独立开关：取消宠物技能冷却
+void Customizer::removePetSkillCooldown() {
+    FileManager* fmCopy = _fileManager;
+    std::function<void()> f = [fmCopy]() {
+        std::vector<std::string> templates = fmCopy->getTemplateNames();
+        for (const std::string& tpl : templates) {
+            std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
+            for (auto temp : files) {
+                // 鉴定为召唤技能
+                if (temp->hasField("petLimit") || temp->hasField("spawnObjects")) {
+                    temp->modifyField("skillCooldownTime", [](std::string str) -> std::string { return "0"; });
+                }
+            }
+        }
+    };
+    _tasks.push_back(f);
+}
+
+// 2. 独立开关：取消宠物耗蓝
+void Customizer::removePetSkillManaCost() {
+    FileManager* fmCopy = _fileManager;
+    std::function<void()> f = [fmCopy]() {
+        std::vector<std::string> templates = fmCopy->getTemplateNames();
+        for (const std::string& tpl : templates) {
+            std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
+            for (auto temp : files) {
+                // 鉴定为召唤技能
+                if (temp->hasField("petLimit") || temp->hasField("spawnObjects")) {
+                    temp->modifyField("skillManaCost", [](std::string str) -> std::string { return "0"; });
+                    temp->modifyField("skillActiveManaCost", [](std::string str) -> std::string { return "0"; });
+                }
+            }
+        }
+    };
+    _tasks.push_back(f);
+}
+
+// 3. 独立参数：自定义宠物数量倍数
+void Customizer::adjustPetLimit(float multiplier) {
+    FileManager* fmCopy = _fileManager;
+    std::function<void()> f = [fmCopy, multiplier]() {
+        std::vector<std::string> templates = fmCopy->getTemplateNames();
+        for (const std::string& tpl : templates) {
+            std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
+            for (auto temp : files) {
+                if (temp->hasField("petLimit")) {
+                    temp->modifyField("petLimit", [multiplier](std::string str) -> std::string {
+                        std::stringstream ss(str);
+                        std::string item;
+                        std::string result = "";
+                        while(std::getline(ss, item, ';')) {
+                            if (!item.empty()) {
+                                try {
+                                    float val = std::stof(item);
+                                    int newVal = (int)(val * multiplier);
+                                    if (newVal < 1 && val > 0) newVal = 1;
+                                    result += std::to_string(newVal) + ";";
+                                } catch (...) {
+                                    result += item + ";";
+                                }
+                            }
+                        }
+                        if (!result.empty()) result.pop_back();
+                        return result;
+                    });
+                }
+            }
         }
     };
     _tasks.push_back(f);
