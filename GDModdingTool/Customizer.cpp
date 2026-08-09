@@ -134,8 +134,6 @@ Customizer::Customizer(FileManager* fileManager, std::vector<std::string> comman
         [this](std::vector<std::string> params) { removePetSkillManaCost(); });
     _commandMap["AdjustPetLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
         [this](std::vector<std::string> params) { adjustPetLimit(ParamTypes::Float(params[0])); });
-    _commandMap["ExtendPetDuration"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
-        [this](std::vector<std::string> params) { extendPetDuration(ParamTypes::Float(params[0])); });
     _commandMap["SetDevotionPointsPerShrine"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator }),
         [this](std::vector<std::string> params) { setDevotionPointsPerShrine(ParamTypes::Integer(params[0])); });
     _commandMap["SetItemStackLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator, ParamTypes::ItemTypeEnumValidator }),
@@ -1066,44 +1064,6 @@ void Customizer::adjustPetLimit(float multiplier) {
                             return newLimitStr;
                         });
                     }
-                }
-            }
-        }
-    };
-    _tasks.push_back(f);
-}
-
-// 4. 独立参数：延长临时宠物的持续时间
-void Customizer::extendPetDuration(float seconds) {
-    FileManager* fmCopy = _fileManager;
-    std::function<void()> f = [fmCopy, seconds]() {
-        std::vector<std::string> templates = fmCopy->getTemplateNames();
-        for (const std::string& tpl : templates) {
-            std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
-            for (auto temp : files) {
-                if ((temp->hasField("petLimit") || temp->hasField("spawnObjects")) && temp->hasField("skillActiveDuration")) {
-                    
-                    temp->modifyField("skillActiveDuration", [seconds](std::string str) -> std::string {
-                        std::stringstream ss(str);
-                        std::string item;
-                        std::string result = "";
-                        while(std::getline(ss, item, ';')) {
-                            if (!item.empty()) {
-                                try {
-                                    float val = std::stof(item);
-                                    if (val > 0.0f) {
-                                        result += std::to_string((int)seconds) + ";";
-                                    } else {
-                                        result += "0;";
-                                    }
-                                } catch (...) {
-                                    result += item + ";";
-                                }
-                            }
-                        }
-                        if (!result.empty()) result.pop_back();
-                        return result;
-                    });
                 }
             }
         }

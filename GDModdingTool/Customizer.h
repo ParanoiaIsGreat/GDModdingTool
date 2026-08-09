@@ -141,7 +141,6 @@ public:
 	void removePetSkillCooldown();
     void removePetSkillManaCost();
     void adjustPetLimit(float multiplier);
-	void extendPetDuration(float seconds);
     void adjustRunSpeed(float multiplier);
     void setDevotionPointsPerShrine(int point);
     void setItemStackLimit(int limit, ItemType type);
