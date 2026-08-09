@@ -1020,7 +1020,7 @@ void Customizer::removePetSkillManaCost() {
     };
     _tasks.push_back(f);
 }
-// 3. 独立参数：自定义宠物数量倍数（终极无死角匹配 & 强制同步版）
+// 3. 独立参数：自定义宠物数量倍数（终极底层特征码与同步版）
 void Customizer::adjustPetLimit(float multiplier) {
     FileManager* fmCopy = _fileManager;
     std::function<void()> f = [fmCopy, multiplier]() {
@@ -1033,26 +1033,24 @@ void Customizer::adjustPetLimit(float multiplier) {
                     
                     std::shared_ptr<bool> isTargetPet = std::make_shared<bool>(false);
                     
-                    // 鉴定器：剔除空格和下划线后，进行无死角特征匹配
+                    // 鉴定器：剔除空格和下划线后，匹配底层真实的实体代号
                     auto checker = [isTargetPet](std::string str) -> std::string {
                         std::string cleanStr = "";
                         for (char c : str) { 
-                            if (c >= 'A' && c <= 'Z') {
-                                cleanStr += (c + 32); // 转小写
-                            } else if (c != ' ' && c != '_') {
-                                cleanStr += c; // 剔除空格和下划线
-                            }
+                            if (c >= 'A' && c <= 'Z') cleanStr += (c + 32); 
+                            else if (c != ' ' && c != '_') cleanStr += c; 
                         }
                         
-                        // 匹配 6 个核心代号
+                        // 覆盖你指定的 6 个召唤物在底层的真实DNA代号
                         if (cleanStr.find("hellhound") != std::string::npos ||
                             cleanStr.find("raven") != std::string::npos ||
+                            cleanStr.find("familiar") != std::string::npos ||
                             cleanStr.find("briarthorn") != std::string::npos ||
                             cleanStr.find("manticore") != std::string::npos ||
                             cleanStr.find("blightbeast") != std::string::npos ||
-                            cleanStr.find("blightfiend") != std::string::npos ||
-                            cleanStr.find("reapspirit") != std::string::npos ||
-                            cleanStr.find("reapingspirit") != std::string::npos) {
+                            cleanStr.find("abomination") != std::string::npos ||
+                            cleanStr.find("wraith") != std::string::npos ||
+                            cleanStr.find("skeleton") != std::string::npos) {
                             
                             // 排除伪宠物
                             if (cleanStr.find("blade") == std::string::npos && 
@@ -1064,19 +1062,16 @@ void Customizer::adjustPetLimit(float multiplier) {
                         return str; // 不修改原字段，只负责验证
                     };
 
-                    // 扩大搜索范围：检查所有可能包含名称的字段
+                    // 扩大搜索范围：强制检查所有可能藏有实体代号的字段
                     std::vector<std::string> featureFields = {
-                        "skillDisplayName", "skillBaseName", "FileDescription", 
-                        "petBonusName", "spawnObjects", "spawnObjects1", 
-                        "spawnObjects2", "spawnObjects3", "spawnObjects4", "skillName"
+                        "spawnObjects", "spawnObjects1", "spawnObjects2", 
+                        "spawnObjects3", "spawnObjects4"
                     };
                     for (const std::string& field : featureFields) {
-                        if (temp->hasField(field)) {
-                            temp->modifyField(field, checker);
-                        }
+                        if (temp->hasField(field)) temp->modifyField(field, checker);
                     }
 
-                    // 用于在两个 Lambda 之间传递计算后的上限结果
+                    // 暂存计算后的 Limit 字符串
                     std::shared_ptr<std::string> newLimitStr = std::make_shared<std::string>("");
 
                     // 核心修改 A：计算并覆写宠物上限
@@ -1098,18 +1093,36 @@ void Customizer::adjustPetLimit(float multiplier) {
                         }
                         if (!result.empty()) result.pop_back();
                         
-                        *newLimitStr = result; // 将最终的字符串暂存起来
+                        *newLimitStr = result; 
                         return result;
                     });
                     
-                    // 核心修改 B：强制将单次爆发召唤数量与上限完全同步
+                    // 核心修改 B：修改爆发召唤数（加入保底机制防空值）
                     if (temp->hasField("petBurstSpawn")) {
-                        temp->modifyField("petBurstSpawn", [isTargetPet, newLimitStr](std::string str) -> std::string {
+                        temp->modifyField("petBurstSpawn", [multiplier, isTargetPet, newLimitStr](std::string str) -> std::string {
                             if (!(*isTargetPet)) return str; 
+                            
+                            // 优先强行同步已计算出的 Limit
                             if (!newLimitStr->empty()) {
-                                return *newLimitStr; // 直接强行应用上面计算好的上限值
+                                return *newLimitStr; 
                             }
-                            return str;
+                            
+                            // 保底机制：如果底层解析顺序导致 Burst 先执行，则将其自身的数值按同等倍数放大
+                            std::stringstream ss(str);
+                            std::string item;
+                            std::string result = "";
+                            while(std::getline(ss, item, ';')) {
+                                if (!item.empty()) {
+                                    try {
+                                        float val = std::stof(item);
+                                        int newVal = (int)(val * multiplier);
+                                        if (newVal < 1 && val > 0) newVal = 1;
+                                        result += std::to_string(newVal) + ";";
+                                    } catch (...) { result += item + ";"; }
+                                }
+                            }
+                            if (!result.empty()) result.pop_back();
+                            return result;
                         });
                     }
                 }
