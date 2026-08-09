@@ -1020,7 +1020,7 @@ void Customizer::removePetSkillManaCost() {
     };
     _tasks.push_back(f);
 }
-// 3. 独立参数：自定义宠物数量倍数（同步修改单次召唤数量）
+// 3. 独立参数：自定义宠物数量倍数（带白名单过滤，不误伤刀灵等伪宠物）
 void Customizer::adjustPetLimit(float multiplier) {
     FileManager* fmCopy = _fileManager;
     std::function<void()> f = [fmCopy, multiplier]() {
@@ -1028,36 +1028,71 @@ void Customizer::adjustPetLimit(float multiplier) {
         for (const std::string& tpl : templates) {
             std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
             for (auto temp : files) {
-                if (temp->hasField("petLimit")) {
-                    std::string newLimitStr = ""; 
+                // 必须同时存在上限字段和召唤物路径字段
+                if (temp->hasField("petLimit") && temp->hasField("spawnObjects")) {
                     
-                    // 步骤 A：修改数量上限
-                    temp->modifyField("petLimit", [multiplier, &newLimitStr](std::string str) -> std::string {
-                        std::stringstream ss(str);
-                        std::string item;
-                        std::string result = "";
-                        while(std::getline(ss, item, ';')) {
-                            if (!item.empty()) {
-                                try {
-                                    float val = std::stof(item);
-                                    int newVal = (int)(val * multiplier);
-                                    if (newVal < 1 && val > 0) newVal = 1;
-                                    result += std::to_string(newVal) + ";";
-                                } catch (...) {
-                                    result += item + ";";
+                    bool isTargetPet = false;
+                    
+                    // 步骤 A：通过隐式读取 spawnObjects 来鉴定具体召唤了什么宠物
+                    temp->modifyField("spawnObjects", [&isTargetPet](std::string str) -> std::string {
+                        // 将路径转为小写以防大小写差异
+                        std::string lowerStr = str;
+                        for (char& c : lowerStr) {
+                            if (c >= 'A' && c <= 'Z') c = c + ('a' - 'A');
+                        }
+                        
+                        // 白名单关键词精准匹配（涵盖了你指定的特定职业宝宝底层文件名）
+                        bool match = false;
+                        if (lowerStr.find("familiar") != std::string::npos) match = true;        // 乌鸦
+                        if (lowerStr.find("hellhound") != std::string::npos) match = true;       // 地狱犬
+                        if (lowerStr.find("briarthorn") != std::string::npos) match = true;      // 荆棘兽
+                        if (lowerStr.find("primal") != std::string::npos) match = true;          // 原始之灵
+                        if (lowerStr.find("skeleton") != std::string::npos) match = true;        // 骷髅
+                        if (lowerStr.find("blightfiend") != std::string::npos || 
+                            lowerStr.find("abomination") != std::string::npos) match = true;     // 疫病恶魔(底层代号abomination)
+                        if (lowerStr.find("reapspirit") != std::string::npos || 
+                            lowerStr.find("wraith") != std::string::npos || 
+                            lowerStr.find("ghost") != std::string::npos) match = true;           // 精魂
+                        
+                        // 排除刀灵 (blade spirit) 等可能携带spirit字眼的干扰项
+                        if (match && lowerStr.find("blade") == std::string::npos) {
+                            isTargetPet = true;
+                        }
+                        return str; // 不修改原路径，只负责读取和判定
+                    });
+
+                    // 步骤 B：如果是白名单内的真正宝宝，再执行数量翻倍
+                    if (isTargetPet) {
+                        std::string newLimitStr = ""; 
+                        
+                        // 修改数量上限
+                        temp->modifyField("petLimit", [multiplier, &newLimitStr](std::string str) -> std::string {
+                            std::stringstream ss(str);
+                            std::string item;
+                            std::string result = "";
+                            while(std::getline(ss, item, ';')) {
+                                if (!item.empty()) {
+                                    try {
+                                        float val = std::stof(item);
+                                        int newVal = (int)(val * multiplier);
+                                        if (newVal < 1 && val > 0) newVal = 1;
+                                        result += std::to_string(newVal) + ";";
+                                    } catch (...) {
+                                        result += item + ";";
+                                    }
                                 }
                             }
-                        }
-                        if (!result.empty()) result.pop_back();
-                        newLimitStr = result;
-                        return result;
-                    });
-                    
-                    // 步骤 B：将单次召唤数量同步修改
-                    if (!newLimitStr.empty() && temp->hasField("petBurstSpawn")) {
-                        temp->modifyField("petBurstSpawn", [newLimitStr](std::string str) -> std::string {
-                            return newLimitStr;
+                            if (!result.empty()) result.pop_back();
+                            newLimitStr = result;
+                            return result;
                         });
+                        
+                        // 同步修改单次爆发召唤数量
+                        if (!newLimitStr.empty() && temp->hasField("petBurstSpawn")) {
+                            temp->modifyField("petBurstSpawn", [newLimitStr](std::string str) -> std::string {
+                                return newLimitStr;
+                            });
+                        }
                     }
                 }
             }
