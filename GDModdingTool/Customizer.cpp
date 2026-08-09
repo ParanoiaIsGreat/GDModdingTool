@@ -134,7 +134,7 @@ Customizer::Customizer(FileManager* fileManager, std::vector<std::string> comman
         [this](std::vector<std::string> params) { removePetSkillManaCost(); });
     _commandMap["AdjustPetLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
         [this](std::vector<std::string> params) { adjustPetLimit(ParamTypes::Float(params[0])); });
-	_commandMap["ExtendPetDuration"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
+    _commandMap["ExtendPetDuration"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
         [this](std::vector<std::string> params) { extendPetDuration(ParamTypes::Float(params[0])); });
     _commandMap["SetDevotionPointsPerShrine"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator }),
         [this](std::vector<std::string> params) { setDevotionPointsPerShrine(ParamTypes::Integer(params[0])); });
@@ -1027,42 +1027,6 @@ void Customizer::removePetSkillManaCost() {
     };
     _tasks.push_back(f);
 }
-
-// 3. 独立参数：自定义宠物数量倍数
-void Customizer::adjustPetLimit(float multiplier) {
-    FileManager* fmCopy = _fileManager;
-    std::function<void()> f = [fmCopy, multiplier]() {
-        std::vector<std::string> templates = fmCopy->getTemplateNames();
-        for (const std::string& tpl : templates) {
-            std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
-            for (auto temp : files) {
-                if (temp->hasField("petLimit")) {
-                    temp->modifyField("petLimit", [multiplier](std::string str) -> std::string {
-                        std::stringstream ss(str);
-                        std::string item;
-                        std::string result = "";
-                        while(std::getline(ss, item, ';')) {
-                            if (!item.empty()) {
-                                try {
-                                    float val = std::stof(item);
-                                    int newVal = (int)(val * multiplier);
-                                    if (newVal < 1 && val > 0) newVal = 1;
-                                    result += std::to_string(newVal) + ";";
-                                } catch (...) {
-                                    result += item + ";";
-                                }
-                            }
-                        }
-                        if (!result.empty()) result.pop_back();
-                        return result;
-                    });
-                }
-            }
-        }
-    };
-    _tasks.push_back(f);
-}
-
 // 3. 独立参数：自定义宠物数量倍数（同步修改单次召唤数量）
 void Customizer::adjustPetLimit(float multiplier) {
     FileManager* fmCopy = _fileManager;
@@ -1072,7 +1036,7 @@ void Customizer::adjustPetLimit(float multiplier) {
             std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
             for (auto temp : files) {
                 if (temp->hasField("petLimit")) {
-                    std::string newLimitStr = ""; // 用于暂存计算后的新上限文本
+                    std::string newLimitStr = ""; 
                     
                     // 步骤 A：修改数量上限
                     temp->modifyField("petLimit", [multiplier, &newLimitStr](std::string str) -> std::string {
@@ -1096,7 +1060,7 @@ void Customizer::adjustPetLimit(float multiplier) {
                         return result;
                     });
                     
-                    // 步骤 B：将单次召唤数量 (petBurstSpawn) 修改为与上限完全一致
+                    // 步骤 B：将单次召唤数量同步修改
                     if (!newLimitStr.empty() && temp->hasField("petBurstSpawn")) {
                         temp->modifyField("petBurstSpawn", [newLimitStr](std::string str) -> std::string {
                             return newLimitStr;
@@ -1117,7 +1081,6 @@ void Customizer::extendPetDuration(float seconds) {
         for (const std::string& tpl : templates) {
             std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
             for (auto temp : files) {
-                // 鉴定是否为召唤相关技能，并且存在持续时间字段
                 if ((temp->hasField("petLimit") || temp->hasField("spawnObjects")) && temp->hasField("skillActiveDuration")) {
                     
                     temp->modifyField("skillActiveDuration", [seconds](std::string str) -> std::string {
@@ -1128,8 +1091,6 @@ void Customizer::extendPetDuration(float seconds) {
                             if (!item.empty()) {
                                 try {
                                     float val = std::stof(item);
-                                    // 核心保护逻辑：如果 val 是 0，说明原本是永久宝宝，不能瞎改。
-                                    // 只有原本存在持续时间的临时宝宝（比如 > 0），才给它延长到 7200 秒
                                     if (val > 0.0f) {
                                         result += std::to_string((int)seconds) + ";";
                                     } else {

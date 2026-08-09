@@ -101,7 +101,7 @@ public:
     std::string text();
 	bool hasField(std::string fieldName) {
         parse();
-        return _fieldMap[fieldName] != nullptr;
+        return _fieldMap.contains(fieldName);
     }
 
     const std::filesystem::directory_entry directoryEntry() const {
