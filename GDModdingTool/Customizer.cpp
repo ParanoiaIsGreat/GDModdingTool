@@ -134,6 +134,8 @@ Customizer::Customizer(FileManager* fileManager, std::vector<std::string> comman
         [this](std::vector<std::string> params) { removePetSkillManaCost(); });
     _commandMap["AdjustPetLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
         [this](std::vector<std::string> params) { adjustPetLimit(ParamTypes::Float(params[0])); });
+	_commandMap["ApplyBigCaravanTweaks"] = Command(std::vector<std::function<bool(std::string)>>({}),
+        [this](std::vector<std::string> params) { applyBigCaravanTweaks(); });
     _commandMap["SetDevotionPointsPerShrine"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator }),
         [this](std::vector<std::string> params) { setDevotionPointsPerShrine(ParamTypes::Integer(params[0])); });
     _commandMap["SetItemStackLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator, ParamTypes::ItemTypeEnumValidator }),
@@ -1257,6 +1259,37 @@ void Customizer::adjustCastSpeedCap(float multiplier) {
                 engine->modifyField("playerSpellCastSpeedCapMin", modifier);
             }
         }
+    };
+    _tasks.push_back(f);
+}
+
+// 8. 专属功能：精准注入新版大背包 (CaravanExtremeUpdate) 的核心引擎参数
+void Customizer::applyBigCaravanTweaks() {
+    // 沿用原作者的安全机制，针对模板进行预处理
+    _addFileForPreParse("gameengine.tpl");
+    FileManager* fmCopy = _fileManager;
+    
+    std::function<void()> f = [fmCopy]() {
+        // 覆盖 UI 尺寸 (新版大背包的尺寸)
+        fmCopy->modifyField("gameengine.tpl", "UICharWindowInventorySack0DimsX", [](std::string) { return "258"; });
+        fmCopy->modifyField("gameengine.tpl", "UICharWindowInventorySack0DimsY", [](std::string) { return "384"; });
+        fmCopy->modifyField("gameengine.tpl", "UICharWindowInventorySack1DimsX", [](std::string) { return "929"; });
+        fmCopy->modifyField("gameengine.tpl", "UICharWindowInventorySack1DimsY", [](std::string) { return "577"; });
+
+        // 覆盖堆叠上限
+        fmCopy->modifyField("gameengine.tpl", "potionStackLimit", [](std::string) { return "999999"; });
+        fmCopy->modifyField("gameengine.tpl", "questItemStackLimit", [](std::string) { return "999999"; });
+        fmCopy->modifyField("gameengine.tpl", "scrollStackLimit", [](std::string) { return "999999"; });
+
+        // 覆盖镜头与移速限制
+        fmCopy->modifyField("gameengine.tpl", "CameraDistanceMin", [](std::string) { return "8.000000"; });
+        fmCopy->modifyField("gameengine.tpl", "CameraPitchMin", [](std::string) { return "4.000000"; });
+        fmCopy->modifyField("gameengine.tpl", "absoluteRunSpeedCapMax", [](std::string) { return "5000.000000"; });
+        fmCopy->modifyField("gameengine.tpl", "bossRunSpeedCapMin", [](std::string) { return "50.000000"; });
+
+        // 其他杂项修正
+        fmCopy->modifyField("gameengine.tpl", "numMonsterRaces", [](std::string) { return "19"; });
+        fmCopy->modifyField("gameengine.tpl", "superBossDisableToken", [](std::string) { return ""; });
     };
     _tasks.push_back(f);
 }

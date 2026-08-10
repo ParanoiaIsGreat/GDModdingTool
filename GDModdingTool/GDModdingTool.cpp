@@ -26,8 +26,8 @@ int main()
         Config config;
         parseConfigFile(config);
         if (config.isAddCaravanExtreme) {
-            if (std::filesystem::exists("OptionalMods\\CaravanExtreme\\Parsed\\database\\records\\")) {
-                config.includedModDirs.push_back("OptionalMods\\CaravanExtreme\\Parsed\\database\\records\\");
+            if (std::filesystem::exists("OptionalMods\\CaravanExtremeUpdate\\Parsed\\database\\records\\")) {
+                config.includedModDirs.push_back("OptionalMods\\CaravanExtremeUpdate\\Parsed\\database\\records\\");
             }
             else {
                 Print << "Error: Couldn't find CaravanExtreme\n";
@@ -55,7 +55,7 @@ int main()
         Print << templateNames.size() << " template names found\n\n";
 
         Customizer customizer(&fileManager, config.commands);
-        if (config.isAddCaravanExtreme) customizer.setupForCaravanExtreme();
+        if (config.isAddCaravanExtreme) customizer.applyBigCaravanTweaks();
 
         std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
         Print << "Pre-parsing required files\n";
@@ -90,8 +90,8 @@ int main()
 
         if (config.isAddCaravanExtreme) {
             Print << "Adding Caravan & Backpack ..\n";
-            if (std::filesystem::exists("OptionalMods\\CaravanExtreme\\CopyOnly\\")) {
-                std::filesystem::copy("OptionalMods\\CaravanExtreme\\CopyOnly\\", config.modDir, std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+            if (std::filesystem::exists("OptionalMods\\CaravanExtremeUpdate\\CopyOnly\\")) {
+                std::filesystem::copy("OptionalMods\\CaravanExtremeUpdate\\CopyOnly\\", config.modDir, std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
                 Print << "\n********  IMPORTANT NOTE  ********\n";
                 Print << "Building your mod through Asset Manager might remove assets in Caravan & Backpack\n";
                 Print << "Copy OptionalMods\\CaravanExtreme\\CopyOnly\\resources into Grim Dawn\\mods\\Your Mod after building\n";
