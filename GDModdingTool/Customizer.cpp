@@ -138,7 +138,8 @@ Customizer::Customizer(FileManager* fileManager, std::vector<std::string> comman
         [this](std::vector<std::string> params) { setDevotionPointsPerShrine(ParamTypes::Integer(params[0])); });
     _commandMap["SetItemStackLimit"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator, ParamTypes::ItemTypeEnumValidator }),
         [this](std::vector<std::string> params) { setItemStackLimit(ParamTypes::Integer(params[0]), ParamTypes::ItemTypeEnum(params[1])); });
-
+    _commandMap["ExtendSpecificPetDuration"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
+        [this](std::vector<std::string> params) { extendSpecificPetDuration(ParamTypes::Float(params[0])); });
     _commandMap["AdjustRunSpeed"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
         [this](std::vector<std::string> params) { adjustRunSpeed(ParamTypes::Float(params[0])); });
     _commandMap["SetMaxDevotionPoints"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator }),
@@ -1126,6 +1127,79 @@ void Customizer::adjustPetLimit(float multiplier) {
                             return result;
                         });
                     }
+                }
+            }
+        }
+    };
+    _tasks.push_back(f);
+}
+
+// 5. 独立参数：延长特定宠物的持续时间（manticore, wraith）
+void Customizer::extendSpecificPetDuration(float seconds) {
+    FileManager* fmCopy = _fileManager;
+    std::function<void()> f = [fmCopy, seconds]() {
+        std::vector<std::string> templates = fmCopy->getTemplateNames();
+        for (const std::string& tpl : templates) {
+            std::vector<DBRBase*> files = fmCopy->getFiles(tpl);
+            for (auto temp : files) {
+                // 只要文件包含存活时间字段，就启动扫描
+                if (temp->hasField("spawnObjectsTimeToLive")) {
+                    
+                    std::shared_ptr<bool> isTargetPet = std::make_shared<bool>(false);
+                    
+                    // 鉴定器：无死角匹配 manticore 和 wraith
+                    auto checker = [isTargetPet](std::string str) -> std::string {
+                        std::string cleanStr = "";
+                        for (char c : str) { 
+                            if (c >= 'A' && c <= 'Z') cleanStr += (c + 32); 
+                            else if (c != ' ' && c != '_') cleanStr += c; 
+                        }
+                        
+                        if (cleanStr.find("manticore") != std::string::npos ||
+                            cleanStr.find("wraith") != std::string::npos) {
+                            
+                            // 排除伪宠物
+                            if (cleanStr.find("blade") == std::string::npos && 
+                                cleanStr.find("totem") == std::string::npos &&
+                                cleanStr.find("rune") == std::string::npos) {
+                                *isTargetPet = true;
+                            }
+                        }
+                        return str;
+                    };
+
+                    // 扫描可能暴露实体代号的字段
+                    std::vector<std::string> featureFields = {
+                        "spawnObjects", "spawnObjects1", "spawnObjects2", 
+                        "spawnObjects3", "spawnObjects4"
+                    };
+                    for (const std::string& field : featureFields) {
+                        if (temp->hasField(field)) temp->modifyField(field, checker);
+                    }
+
+                    // 核心修改：只对白名单目标生效
+                    temp->modifyField("spawnObjectsTimeToLive", [seconds, isTargetPet](std::string str) -> std::string {
+                        if (!(*isTargetPet)) return str; // 不是目标，原样返回
+
+                        std::stringstream ss(str);
+                        std::string item;
+                        std::string result = "";
+                        while(std::getline(ss, item, ';')) {
+                            if (!item.empty()) {
+                                try {
+                                    float val = std::stof(item);
+                                    if (val > 0.0f) {
+                                        // 将原本有持续时间的值修改为目标秒数
+                                        result += std::to_string((int)seconds) + ";";
+                                    } else {
+                                        result += "0;";
+                                    }
+                                } catch (...) { result += item + ";"; }
+                            }
+                        }
+                        if (!result.empty()) result.pop_back();
+                        return result;
+                    });
                 }
             }
         }
