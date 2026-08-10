@@ -140,6 +140,10 @@ Customizer::Customizer(FileManager* fileManager, std::vector<std::string> comman
         [this](std::vector<std::string> params) { setItemStackLimit(ParamTypes::Integer(params[0]), ParamTypes::ItemTypeEnum(params[1])); });
     _commandMap["ExtendSpecificPetDuration"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
         [this](std::vector<std::string> params) { extendSpecificPetDuration(ParamTypes::Float(params[0])); });
+	_commandMap["AdjustAttackSpeedCap"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
+        [this](std::vector<std::string> params) { adjustAttackSpeedCap(ParamTypes::Float(params[0])); });
+    _commandMap["AdjustCastSpeedCap"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
+        [this](std::vector<std::string> params) { adjustCastSpeedCap(ParamTypes::Float(params[0])); });
     _commandMap["AdjustRunSpeed"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::FloatValidator }),
         [this](std::vector<std::string> params) { adjustRunSpeed(ParamTypes::Float(params[0])); });
     _commandMap["SetMaxDevotionPoints"] = Command(std::vector<std::function<bool(std::string)>>({ ParamTypes::IntegerValidator }),
@@ -1201,6 +1205,56 @@ void Customizer::extendSpecificPetDuration(float seconds) {
                         return result;
                     });
                 }
+            }
+        }
+    };
+    _tasks.push_back(f);
+}
+
+// 6. 独立参数：调整玩家攻击速度上限/下限倍数
+void Customizer::adjustAttackSpeedCap(float multiplier) {
+    FileManager* fmCopy = _fileManager;
+    std::function<void()> f = [fmCopy, multiplier]() {
+        // 直接精准获取 gameengine.dbr 文件
+        DBRBase* engine = fmCopy->getFile("records/game/gameengine.dbr");
+        if (engine != nullptr) {
+            auto modifier = [multiplier](std::string str) -> std::string {
+                try {
+                    float val = std::stof(str);
+                    return std::to_string(val * multiplier);
+                } catch (...) { return str; }
+            };
+            
+            if (engine->hasField("playerAttackSpeedCapMax")) {
+                engine->modifyField("playerAttackSpeedCapMax", modifier);
+            }
+            if (engine->hasField("playerAttackSpeedCapMin")) {
+                engine->modifyField("playerAttackSpeedCapMin", modifier);
+            }
+        }
+    };
+    _tasks.push_back(f);
+}
+
+// 7. 独立参数：调整玩家施法速度上限/下限倍数
+void Customizer::adjustCastSpeedCap(float multiplier) {
+    FileManager* fmCopy = _fileManager;
+    std::function<void()> f = [fmCopy, multiplier]() {
+        // 直接精准获取 gameengine.dbr 文件
+        DBRBase* engine = fmCopy->getFile("records/game/gameengine.dbr");
+        if (engine != nullptr) {
+            auto modifier = [multiplier](std::string str) -> std::string {
+                try {
+                    float val = std::stof(str);
+                    return std::to_string(val * multiplier);
+                } catch (...) { return str; }
+            };
+            
+            if (engine->hasField("playerSpellCastSpeedCapMax")) {
+                engine->modifyField("playerSpellCastSpeedCapMax", modifier);
+            }
+            if (engine->hasField("playerSpellCastSpeedCapMin")) {
+                engine->modifyField("playerSpellCastSpeedCapMin", modifier);
             }
         }
     };
